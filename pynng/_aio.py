@@ -3,6 +3,8 @@ Helpers for AIO functions
 """
 
 import asyncio
+import logging
+
 import sniffio
 import threading
 
@@ -70,10 +72,17 @@ def asyncio_helper(aio):
                 await asyncio.shield(fut)
             except asyncio.CancelledError:
                 if not already_called_nng_aio_cancel:
-                    lib.nng_aio_cancel(aio.aio)
-                    already_called_nng_aio_cancel = True
+                    if aio.aio is not None:
+                        lib.nng_aio_cancel(aio.aio)
+                        already_called_nng_aio_cancel = True
+                    else:
+                        logging.warning("aio already freed (while waiting for aio)")
             else:
                 break
+        if aio.aio is None:
+            logging.warning("aio already freed (while checking for result)")
+            return
+
         err = lib.nng_aio_result(aio.aio)
         if err == lib.NNG_ECANCELED:
             raise asyncio.CancelledError
@@ -220,8 +229,10 @@ class AIOHelper:
         with self._lock:
             # TODO: Do we need to check if self.awaitable is not finished?
             if self.aio is not None:
-                lib.nng_aio_free(self.aio)
-                self.aio = None
+                try:
+                    lib.nng_aio_free(self.aio)
+                finally:
+                    self.aio = None
 
     def __enter__(self):
         return self
