@@ -162,7 +162,7 @@ class AIOHelper:
         # set to None now so we can know if we need to free it later
         # This should be at the top of __init__ so that __del__ doesn't raise
         # an unexpected AttributeError if something funky happens
-        self.aio = None
+        self._aio_p = None
         # this is not a public interface, let's make some assertions
         assert isinstance(obj, (pynng.Socket, pynng.Context))
         # we need to choose the correct nng lib functions based on the type of
@@ -184,19 +184,26 @@ class AIOHelper:
                 .format(async_backend)
             )
         self.awaitable, self.cb_arg = self._aio_helper_map[async_backend](self)
-        aio_p = ffi.new('nng_aio **')
+        self._aio_p = ffi.new('nng_aio **')
         _aio_map[id(self.cb_arg)] = self.cb_arg
         idarg = id(self.cb_arg)
         as_void = ffi.cast('void *', idarg)
-        lib.nng_aio_alloc(aio_p, lib._async_complete, as_void)
-        self.aio = aio_p[0]
+        lib.nng_aio_alloc(self._aio_p, lib._async_complete, as_void)
         self._lock = threading.Lock()
 
+    @property
+    def aio(self):
+        if self._aio_p is not None:
+            return self._aio_p[0]
+
+        return None
+        
     async def arecv(self):
         msg = await self.arecv_msg()
         return msg.bytes
 
     async def arecv_msg(self):
+        assert self.aio
         check_err(self._lib_arecv(self._nng_obj, self.aio))
         await self.awaitable
         check_err(lib.nng_aio_result(self.aio))
@@ -204,6 +211,7 @@ class AIOHelper:
         return pynng.Message(msg)
 
     async def asend(self, data):
+        assert self.aio
         msg_p = ffi.new('nng_msg **')
         check_err(lib.nng_msg_alloc(msg_p, 0))
         msg = msg_p[0]
@@ -217,6 +225,7 @@ class AIOHelper:
         Asynchronously send a Message
 
         """
+        assert self.aio
         lib.nng_aio_set_msg(self.aio, msg._nng_msg)
         check_err(self._lib_asend(self._nng_obj, self.aio))
         msg._mem_freed = True
@@ -228,19 +237,17 @@ class AIOHelper:
         """
         with self._lock:
             # TODO: Do we need to check if self.awaitable is not finished?
-            if self.aio is not None:
+            if self._aio_p is not None:
                 try:
                     lib.nng_aio_free(self.aio)
                 finally:
-                    self.aio = None
+                    self._aio_p = None
 
     def __enter__(self):
         return self
 
     def __exit__(self, *_exc_info):
-        # self._free()
-        pass
+        self._free()
 
     def __del__(self):
-        # self._free()
-        pass
+        self._free()
