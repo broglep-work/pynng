@@ -184,15 +184,9 @@ class AIOHelper:
                 .format(async_backend)
             )
         self.awaitable, self.cb_arg = self._aio_helper_map[async_backend](self)
-        self._aio_p = ffi.new('nng_aio **')
         _aio_map[id(self.cb_arg)] = self.cb_arg
         idarg = id(self.cb_arg)
-        as_void = ffi.cast('void *', idarg)
-        res = lib.nng_aio_alloc(self._aio_p, lib._async_complete, as_void)
-        if res != 0:
-            self._aio_p = None
-            raise OSError("nng_aio_alloc failed")
-
+        self._cb_arg_as_void = ffi.cast('void *', idarg)
         self._lock = threading.Lock()
 
     @property
@@ -235,6 +229,16 @@ class AIOHelper:
         msg._mem_freed = True
         return await self.awaitable
 
+    def _alloc(self):
+        with self._lock:
+            assert self._aio_p is None
+
+            self._aio_p = ffi.new('nng_aio **')
+            res = lib.nng_aio_alloc(self._aio_p, lib._async_complete, self._cb_arg_as_void)
+            if res != 0:
+                self._aio_p = None
+                raise OSError("nng_aio_alloc failed")
+
     def _free(self):
         """
         Free resources allocated with nng
@@ -248,10 +252,8 @@ class AIOHelper:
                     self._aio_p = None
 
     def __enter__(self):
+        self._alloc()
         return self
 
     def __exit__(self, *_exc_info):
-        self._free()
-
-    def __del__(self):
         self._free()
