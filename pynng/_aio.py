@@ -30,7 +30,10 @@ def _async_complete(void_p):
     id = int(ffi.cast('size_t', void_p))
 
     rescheduler = _aio_map.pop(id)
-    rescheduler()
+    try:
+        rescheduler()
+    except:
+        logging.warning("_async_complete failed", exc_info=True)
 
 
 def curio_helper(aio):
