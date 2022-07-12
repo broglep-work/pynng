@@ -39,7 +39,7 @@ def _pynng_atexit():
     lib.nng_fini()
 
 
-atexit.register(_pynng_atexit)
+#atexit.register(_pynng_atexit)
 
 
 def _ensure_can_send(thing):
