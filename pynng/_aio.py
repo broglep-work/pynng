@@ -4,6 +4,7 @@ Helpers for AIO functions
 
 import asyncio
 import sniffio
+import threading
 
 from ._nng import ffi, lib
 import pynng
@@ -180,6 +181,7 @@ class AIOHelper:
         as_void = ffi.cast('void *', idarg)
         lib.nng_aio_alloc(aio_p, lib._async_complete, as_void)
         self.aio = aio_p[0]
+        self._lock = threading.Lock()
 
     async def arecv(self):
         msg = await self.arecv_msg()
@@ -215,10 +217,11 @@ class AIOHelper:
         """
         Free resources allocated with nng
         """
-        # TODO: Do we need to check if self.awaitable is not finished?
-        if self.aio is not None:
-            lib.nng_aio_free(self.aio)
-            self.aio = None
+        with self._lock:
+            # TODO: Do we need to check if self.awaitable is not finished?
+            if self.aio is not None:
+                lib.nng_aio_free(self.aio)
+                self.aio = None
 
     def __enter__(self):
         return self
