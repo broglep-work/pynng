@@ -34,12 +34,13 @@ Surveyor0 Respondent0
 #     during a callback to _nng_pipe_cb
 #   * Cleanup background queue threads used by NNG
 
+_pynng_atexit_done = False
 
 def _pynng_atexit():
     lib.nng_fini()
+    _pynng_atexit_done = True
 
-
-#atexit.register(_pynng_atexit)
+atexit.register(_pynng_atexit)
 
 
 def _ensure_can_send(thing):

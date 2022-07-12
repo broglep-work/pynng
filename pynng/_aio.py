@@ -246,6 +246,10 @@ class AIOHelper:
         """
         Free resources allocated with nng
         """
+        if pynng.nng._pynng_atexit_done:
+            logging.warning("Not freeing, as nng_fini already run")
+            return
+
         with self._lock:
             # TODO: Do we need to check if self.awaitable is not finished?
             if self._aio_p is not None:
@@ -259,4 +263,7 @@ class AIOHelper:
         return self
 
     def __exit__(self, *_exc_info):
+        self._free()
+
+    def __del__(self):
         self._free()
