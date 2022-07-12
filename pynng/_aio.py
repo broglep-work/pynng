@@ -238,7 +238,8 @@ class AIOHelper:
         return self
 
     def __exit__(self, *_exc_info):
-        self._free()
+        # self._free()
+        pass
 
     def __del__(self):
         self._free()
