@@ -242,4 +242,5 @@ class AIOHelper:
         pass
 
     def __del__(self):
-        self._free()
+        # self._free()
+        pass
