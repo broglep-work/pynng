@@ -188,7 +188,11 @@ class AIOHelper:
         _aio_map[id(self.cb_arg)] = self.cb_arg
         idarg = id(self.cb_arg)
         as_void = ffi.cast('void *', idarg)
-        lib.nng_aio_alloc(self._aio_p, lib._async_complete, as_void)
+        res = lib.nng_aio_alloc(self._aio_p, lib._async_complete, as_void)
+        if res != 0:
+            self._aio_p = None
+            raise OSError("nng_aio_alloc failed")
+
         self._lock = threading.Lock()
 
     @property
@@ -197,7 +201,7 @@ class AIOHelper:
             return self._aio_p[0]
 
         return None
-        
+
     async def arecv(self):
         msg = await self.arecv_msg()
         return msg.bytes
