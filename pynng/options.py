@@ -35,7 +35,8 @@ def _get_inst_and_func(py_obj, option_type, get_or_set):
 
     basic_funcname = option_to_func_map[option_type]
     if isinstance(py_obj, pynng.Socket):
-        funcname = basic_funcname
+        funcname = basic_funcname.replace('nng_', 'nng_socket_')
+        funcname = funcname.replace("getopt", "get").replace("setopt", "set")
         obj = py_obj.socket
     elif isinstance(py_obj, pynng.Dialer):
         funcname = basic_funcname.replace('nng_', 'nng_dialer_')
@@ -131,8 +132,12 @@ def _setopt_ms(py_obj, option, value):
         msg = msg.format(value, type(value))
         raise ValueError(msg)
     value = int(value)
+
+    ms = pynng.ffi.new('nng_duration []', 1)
+    ms[0] = value
+
     obj, lib_func = _get_inst_and_func(py_obj, 'ms', 'set')
-    lib_func(obj, opt_as_char, value)
+    lib_func(obj, opt_as_char, ms)
 
 
 def _getopt_string(py_obj, option):
@@ -155,8 +160,11 @@ def _setopt_string(py_obj, option, value):
     """
     opt_as_char = pynng.nng.to_char(option)
     val_as_char = pynng.nng.to_char(value)
+
     obj, lib_func = _get_inst_and_func(py_obj, 'string', 'set')
-    ret = lib_func(obj, opt_as_char, val_as_char, len(value))
+    s = pynng.ffi.new('size_t []', 1)
+    s[0] = len(val_as_char)
+    ret = lib_func(obj, opt_as_char, val_as_char, s)
     pynng.check_err(ret)
 
 
